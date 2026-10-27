@@ -33,9 +33,18 @@ export default async function PostPage({ params, searchParams }: {
   const ws_ = { id: workspace.id, name: workspace.name, timezone: workspace.timezone };
 
   if (role === 'admin' && view !== 'client') {
+    const [{ data: members }, { data: invites }] = await Promise.all([
+      supabase.from('workspace_members').select('profile:profiles(email)').eq('workspace_id', ws).eq('role', 'approver')
+        .returns<{ profile: { email: string } | null }[]>(),
+      supabase.from('workspace_invites').select('email').eq('workspace_id', ws).eq('role', 'approver'),
+    ]);
+    const approvers = [
+      ...(members ?? []).map((m) => m.profile?.email).filter((e): e is string => Boolean(e)),
+      ...(invites ?? []).map((i) => i.email),
+    ];
     return (
       <PostEditor data={data} versions={versions} workspace={ws_} logoUrl={logoUrl} userId={user.id}
-        plannedLocal={utcToLocalInput(data.post.planned_at, workspace.timezone)} />
+        plannedLocal={utcToLocalInput(data.post.planned_at, workspace.timezone)} approvers={approvers} />
     );
   }
 

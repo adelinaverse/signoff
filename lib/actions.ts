@@ -234,7 +234,7 @@ export async function sendForApproval(postId: string): Promise<Result> {
   // Suggestions on the previous version that were never answered are closed off
   await supabase.from('caption_suggestions').update({ status: 'rejected' }).eq('post_id', postId).eq('status', 'pending');
   refresh(post.workspace_id, postId);
-  return { ok: version === 1 ? 'Sent for approval' : `Version ${version} sent for approval` };
+  return { ok: version === 1 ? 'Ready for approval. Copy the link below and send it to your client.' : `Version ${version} is ready for approval. Copy the link below and send it to your client.` };
 }
 
 export async function setStatus(postId: string, status: 'draft' | 'approved' | 'scheduled' | 'published'): Promise<Result> {

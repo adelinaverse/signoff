@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CopyLink } from '@/components/copy-link';
 import { PostThumb } from '@/components/post-thumb';
 import { StatusStamp } from '@/components/status-stamp';
 import { createPost } from '@/lib/actions';
@@ -32,6 +33,9 @@ export default async function BoardPage({ params, searchParams }: {
     <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold tracking-tight">Posts</h1>
+        {isAdmin && waiting.length > 0 && (
+          <CopyLink path={`/w/${ws}/review`} label={`Copy review link (${waiting.length} waiting)`} className="btn btn-quiet" />
+        )}
         {isAdmin && waiting.length > 0 && <EmailApproversButton workspaceId={ws} count={waiting.length} />}
         {isAdmin && (
           <form action={createPost.bind(null, ws)}>

@@ -8,6 +8,7 @@ import { FeedbackPanel } from '@/components/feedback-panel';
 import { MediaViewer } from '@/components/media-viewer';
 import { StatusStamp } from '@/components/status-stamp';
 import { VersionHistory, type VersionView } from '@/components/version-history';
+import { CopyLink, LinkText } from '@/components/copy-link';
 import { addMedia, deletePost, moveMedia, removeMedia, savePost, sendForApproval, setStatus } from '@/lib/actions';
 import { checkPlatform, mediaSummary, PLATFORM_INFO, PLATFORMS } from '@/lib/platforms';
 import type { LoadedPostView } from './types';
@@ -16,13 +17,15 @@ import type { Platform } from '@/lib/types';
 
 type PState = Record<Platform, { on: boolean; caption: string; is_reel: boolean }>;
 
-export function PostEditor({ data, versions, workspace, logoUrl, userId, plannedLocal }: {
+export function PostEditor({ data, versions, workspace, logoUrl, userId, plannedLocal, approvers }: {
   data: LoadedPostView;
   versions: VersionView[];
   workspace: { id: string; name: string; timezone: string };
   logoUrl: string | null;
   userId: string;
   plannedLocal: string;
+  /** emails of the people who can approve in this workspace */
+  approvers: string[];
 }) {
   const { post, media, comments, suggestions, approvals } = data;
   const router = useRouter();
@@ -139,6 +142,26 @@ export function PostEditor({ data, versions, workspace, logoUrl, userId, planned
       </div>
       {msg?.error && <p role="alert" className="mt-3 rounded-md bg-red-soft px-3 py-2 text-sm text-red">{msg.error}</p>}
       {msg?.ok && <p role="status" className="mt-3 text-sm text-green">{msg.ok}</p>}
+
+      {post.status === 'ready' && (
+        <div className="mt-4 rounded-lg border-2 border-cobalt bg-surface p-4">
+          <p className="font-semibold">Send this link to {workspace.name}</p>
+          {approvers.length > 0 ? (
+            <p className="mt-1 text-sm text-muted">
+              Nobody is notified automatically. Paste this into an email or message to {approvers.join(', ')}.
+              They sign in with that email and land straight on this post.
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-amber">
+              No approver has been added for {workspace.name} yet. Add their email in <Link href={`/w/${workspace.id}/settings`} className="underline">Settings</Link> first, or the link won&apos;t let them in.
+            </p>
+          )}
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1"><LinkText path={`/w/${workspace.id}/posts/${post.id}`} /></div>
+            <CopyLink path={`/w/${workspace.id}/posts/${post.id}`} label="Copy link to this post" className="btn btn-primary btn-sm" />
+          </div>
+        </div>
+      )}
 
       {lastDecision && lastDecision.decision !== 'approved' && editable && (
         <div className="mt-4 rounded-lg border-l-4 border-amber bg-amber-soft px-4 py-3">
