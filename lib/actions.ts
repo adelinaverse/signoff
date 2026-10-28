@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { directPath, ensureAccessLinks } from './access-links';
+import { approverEmails, directPath, ensureAccessLinks } from './access-links';
 import { getSession, requireAdmin } from './data';
 import { digestHtml, sendEmail, SITE_URL, APP_NAME } from './email';
 import { checkPlatform, PLATFORMS } from './platforms';
-import { localInputToUtc } from './time';
+import { formatPlanned, localInputToUtc } from './time';
 import type { Decision, MediaItem, MemberRole, Platform, PlatformVersion, Post, VersionSnapshot } from './types';
 
 type Result = { error?: string; ok?: string };
@@ -218,7 +218,7 @@ export async function moveMedia(mediaId: string, direction: -1 | 1): Promise<Res
   return {};
 }
 
-export async function sendForApproval(postId: string): Promise<Result> {
+export async function sendForApproval(postId: string, notify = false): Promise<Result> {
   const { supabase, user } = await requireAdmin();
   const post = await getPost(postId);
   if (!EDITABLE.includes(post.status)) return { error: 'Only drafts and posts with requested changes can be sent.' };
@@ -247,7 +247,46 @@ export async function sendForApproval(postId: string): Promise<Result> {
   // Suggestions on the previous version that were never answered are closed off
   await supabase.from('caption_suggestions').update({ status: 'rejected' }).eq('post_id', postId).eq('status', 'pending');
   refresh(post.workspace_id, postId);
-  return { ok: version === 1 ? 'Ready for approval. Copy the link below and send it to your client.' : `Version ${version} is ready for approval. Copy the link below and send it to your client.` };
+
+  const label = version === 1 ? 'Ready for approval.' : `Version ${version} is ready for approval.`;
+  if (!notify) return { ok: `${label} Copy the link below and send it to your client.` };
+
+  const sent = await emailPostToApprovers(post.workspace_id, { ...post, version });
+  if (sent.error) return { error: `${label} The email didn't go out (${sent.error}). Copy the link below and send it instead.` };
+  return { ok: `${label} Emailed ${sent.ok}.` };
+}
+
+/** One email per approver, each with their own direct link to the post */
+async function emailPostToApprovers(workspaceId: string, post: Pick<Post, 'id' | 'title' | 'version' | 'planned_at'>) {
+  const { supabase } = await requireAdmin();
+  const [{ data: ws }, emails] = await Promise.all([
+    supabase.from('workspaces').select('name, timezone').eq('id', workspaceId).single(),
+    approverEmails(supabase, workspaceId),
+  ]);
+  const links = await ensureAccessLinks(supabase, workspaceId, emails);
+  if (!links.length) return { error: 'no approver has been added in Settings' };
+
+  const updated = post.version > 1;
+  const when = post.planned_at ? `Planned for ${formatPlanned(post.planned_at, ws?.timezone ?? 'Australia/Perth')}.` : '';
+  const sentTo: string[] = [];
+  let failure = '';
+  for (const l of links) {
+    const mail = await sendEmail(
+      [l.email],
+      updated ? `Updated post ready for your approval: ${post.title}` : `New post ready for your approval: ${post.title}`,
+      digestHtml({
+        intro: updated
+          ? `We've made the changes you asked for on this ${ws?.name ?? ''} post. Have a look, and approve it if you're happy or let us know what else needs changing.`
+          : `A new ${ws?.name ?? ''} post is ready for you to review.`,
+        items: [post.title, ...(when ? [when] : [])],
+        buttonLabel: updated ? 'Review the update' : 'Review the post',
+        buttonUrl: `${SITE_URL}${directPath(l.token, `/w/${workspaceId}/posts/${post.id}`)}`,
+      }),
+    );
+    if (mail.sent) sentTo.push(l.email); else failure = mail.reason;
+  }
+  if (!sentTo.length) return { error: failure.toLowerCase() || 'email is not set up' };
+  return { ok: sentTo.join(', ') };
 }
 
 export async function setStatus(postId: string, status: 'draft' | 'approved' | 'scheduled' | 'published'): Promise<Result> {
@@ -377,26 +416,30 @@ export async function decide(postId: string, decision: Decision, reason: string)
 // ---------------------------------------------------------------------------
 export async function emailApprovers(workspaceId: string): Promise<Result> {
   const { supabase } = await requireAdmin();
-  const [{ data: ws }, { data: posts }, { data: members }] = await Promise.all([
+  const [{ data: ws }, { data: posts }, emails] = await Promise.all([
     supabase.from('workspaces').select('name').eq('id', workspaceId).single(),
     supabase.from('posts').select('title').eq('workspace_id', workspaceId).eq('status', 'ready').order('planned_at'),
-    supabase.from('workspace_members').select('role, profile:profiles(email)').eq('workspace_id', workspaceId).eq('role', 'approver')
-      .returns<{ role: string; profile: { email: string } | null }[]>(),
+    approverEmails(supabase, workspaceId),
   ]);
-  const to = (members ?? []).map((m) => m.profile?.email).filter((e): e is string => Boolean(e));
   if (!posts?.length) return { error: 'Nothing is waiting for approval.' };
-  if (!to.length) return { error: 'Add an approver in Settings first.' };
+  const links = await ensureAccessLinks(supabase, workspaceId, emails);
+  if (!links.length) return { error: 'Add an approver in Settings first.' };
 
   const n = posts.length;
-  const mail = await sendEmail(
-    to,
-    `${n} post${n === 1 ? '' : 's'} ready for your review`,
-    digestHtml({
-      intro: `${n === 1 ? 'A post is' : `${n} posts are`} ready for you to review for ${ws?.name ?? 'your business'}.`,
-      items: posts.map((p) => p.title),
-      buttonLabel: 'Review posts',
-      buttonUrl: `${SITE_URL}/w/${workspaceId}/review`,
-    }),
-  );
-  return mail.sent ? { ok: `Emailed ${to.join(', ')}` } : { error: `Couldn't send: ${mail.reason}.` };
+  const sentTo: string[] = [];
+  let failure = '';
+  for (const l of links) {
+    const mail = await sendEmail(
+      [l.email],
+      `${n} post${n === 1 ? '' : 's'} ready for your review`,
+      digestHtml({
+        intro: `${n === 1 ? 'A post is' : `${n} posts are`} ready for you to review for ${ws?.name ?? 'your business'}.`,
+        items: posts.map((p) => p.title),
+        buttonLabel: 'Review posts',
+        buttonUrl: `${SITE_URL}${directPath(l.token, `/w/${workspaceId}/review`)}`,
+      }),
+    );
+    if (mail.sent) sentTo.push(l.email); else failure = mail.reason;
+  }
+  return sentTo.length ? { ok: `Emailed ${sentTo.join(', ')}` } : { error: `Couldn't send: ${failure}.` };
 }

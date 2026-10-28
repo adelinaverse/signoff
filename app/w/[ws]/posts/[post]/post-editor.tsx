@@ -51,6 +51,8 @@ export function PostEditor({ data, versions, workspace, logoUrl, userId, planned
   const [uploads, setUploads] = useState<{ name: string; progress: number }[]>([]);
   const [activeMark, setActiveMark] = useState<string | null>(null);
   const [previewTab, setPreviewTab] = useState<Platform | null>(null);
+  // Updated posts email the client by default; first sends are usually batched with the review link
+  const [notify, setNotify] = useState(post.version > 0);
 
   const touch = () => { setDirty(true); setMsg(undefined); };
   const setP = (p: Platform, patch: Partial<PState[Platform]>) => { setPlatforms((s) => ({ ...s, [p]: { ...s[p], ...patch } })); touch(); };
@@ -124,9 +126,15 @@ export function PostEditor({ data, versions, workspace, logoUrl, userId, planned
         {post.version > 0 && <span className="text-sm text-muted">Version {post.version}</span>}
         <div className="ml-auto flex flex-wrap gap-2">
           {editable && (
+            <label className="flex items-center gap-2 text-sm text-muted">
+              <input type="checkbox" className="accent-ink" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+              Email {workspace.name}
+            </label>
+          )}
+          {editable && (
             <button type="button" className="btn btn-primary" disabled={pending || blocking}
               title={blocking ? 'Fix the issues marked in red first' : undefined}
-              onClick={() => save(() => sendForApproval(post.id))}>
+              onClick={() => save(() => sendForApproval(post.id, notify))}>
               {post.version === 0 ? 'Send for approval' : `Send version ${post.version + 1} for approval`}
             </button>
           )}
