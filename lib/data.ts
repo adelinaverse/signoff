@@ -10,8 +10,11 @@ type Supa = Awaited<ReturnType<typeof createClient>>;
 
 export const getSession = cache(async () => {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  // Verified locally from the sign-in token, so no round trip to the auth server
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) redirect('/login');
+  const user = { id: claims.sub, email: (claims.email as string | undefined) ?? '' };
   const { data: isAdmin } = await supabase.rpc('is_agency_admin');
   return { supabase, user, isAdmin: Boolean(isAdmin) };
 });
@@ -25,13 +28,18 @@ export async function requireAdmin() {
 export const getWorkspaceContext = cache(async (workspaceId: string) => {
   const session = await getSession();
   const { supabase, user, isAdmin } = session;
-  const { data: workspace } = await supabase.from('workspaces').select('*').eq('id', workspaceId).maybeSingle<Workspace>();
+  // Fetched side by side rather than one after the other
+  const [{ data: workspace }, { data: m }] = await Promise.all([
+    supabase.from('workspaces').select('*').eq('id', workspaceId).maybeSingle<Workspace>(),
+    isAdmin
+      ? Promise.resolve({ data: null })
+      : supabase.from('workspace_members').select('role')
+        .eq('workspace_id', workspaceId).eq('user_id', user.id).maybeSingle<{ role: Role }>(),
+  ]);
   if (!workspace) notFound();
 
   let role: Role = 'admin';
   if (!isAdmin) {
-    const { data: m } = await supabase.from('workspace_members').select('role')
-      .eq('workspace_id', workspaceId).eq('user_id', user.id).maybeSingle<{ role: Role }>();
     if (!m) notFound();
     role = m.role;
   }
