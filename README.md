@@ -15,7 +15,7 @@ The app name is neutral and set with `NEXT_PUBLIC_APP_NAME`, so you can rename i
 ## 1. Set up Supabase
 
 1. Create a new project. Pick the Sydney region so it's close to your clients.
-2. Open **SQL Editor**, paste the whole of `supabase/migrations/0001_init.sql` and run it.
+2. Open **SQL Editor**, paste the whole of `supabase/migrations/0001_init.sql` and run it. Then do the same with `0002_access_links.sql`.
 3. In the same editor, make yourself the agency admin:
 
    ```sql
@@ -39,7 +39,7 @@ The app name is neutral and set with `NEXT_PUBLIC_APP_NAME`, so you can rename i
    | --- | --- |
    | `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public key |
-   | `SUPABASE_SERVICE_ROLE_KEY` | service_role key (secret, used only by the daily reminder) |
+   | `SUPABASE_SERVICE_ROLE_KEY` | service_role key (secret: used for clients' direct links and the daily reminder) |
    | `NEXT_PUBLIC_SITE_URL` | your Vercel address |
    | `NEXT_PUBLIC_APP_NAME` | whatever you want clients to see |
    | `RESEND_API_KEY` | from Resend |
@@ -54,7 +54,7 @@ The app name is neutral and set with `NEXT_PUBLIC_APP_NAME`, so you can rename i
 1. Open the app and sign in with your admin email. You'll get a link by email.
 2. Add a client (e.g. AWE Group). Upload their logo, check the timezone (defaults to Perth), and add the owner's email as an **Approver**. They get an invite email and are linked to the workspace the first time they sign in.
 3. Create a post: add images, a carousel or a video, tick the platforms, write each caption, set the planned date, then **Send for approval**.
-4. Use **See what the client sees** to check their view, then **Email client** on the Posts list to send them one digest of everything waiting.
+4. Use **See what the client sees** to check their view. Then send the client their direct link: **Copy link** on a post, or **Copy review link** on the Posts list for everything waiting. The link signs them straight in, no email needed. Each person's link is also in Settings, where you can reset it if it's ever shared by mistake.
 
 ## How a post moves
 

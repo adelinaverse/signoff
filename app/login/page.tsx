@@ -17,7 +17,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <p className="mt-2 text-muted">We&apos;ll email you a link. No password needed.</p>
         {error && (
           <p className="mt-6 rounded-md bg-red-soft px-3 py-2 text-sm text-red">
-            That sign-in link has expired or was already used. Request a new one below.
+            {error === 'direct'
+              ? 'That link is no longer active. Ask for a new one, or sign in with your email below.'
+              : error === 'setup'
+                ? 'Direct links are not switched on yet. Sign in with your email below.'
+                : 'That sign-in link has expired or was already used. Request a new one below.'}
           </p>
         )}
         <LoginForm next={next} defaultEmail={email} />

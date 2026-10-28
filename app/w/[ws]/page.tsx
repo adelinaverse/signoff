@@ -4,6 +4,7 @@ import { PostThumb } from '@/components/post-thumb';
 import { StatusStamp } from '@/components/status-stamp';
 import { createPost } from '@/lib/actions';
 import { loadBoardPosts } from '@/lib/board';
+import { approverEmails, directPath, ensureAccessLinks } from '@/lib/access-links';
 import { getWorkspaceContext } from '@/lib/data';
 import { mediaSummary, PLATFORM_INFO } from '@/lib/platforms';
 import { STATUS_ORDER, statusLabel } from '@/lib/status';
@@ -21,6 +22,7 @@ export default async function BoardPage({ params, searchParams }: {
   const isAdmin = role === 'admin';
 
   const waiting = posts.filter((p) => p.status === 'ready');
+  const reviewLinks = isAdmin && waiting.length > 0 ? await ensureAccessLinks(supabase, ws, await approverEmails(supabase, ws)) : [];
   const showDone = show === 'all';
   const doneStatuses = ['published', 'rejected'];
   const hiddenCount = posts.filter((p) => doneStatuses.includes(p.status)).length;
@@ -33,9 +35,11 @@ export default async function BoardPage({ params, searchParams }: {
     <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold tracking-tight">Posts</h1>
-        {isAdmin && waiting.length > 0 && (
-          <CopyLink path={`/w/${ws}/review`} label={`Copy review link (${waiting.length} waiting)`} className="btn btn-quiet" />
-        )}
+        {reviewLinks.map((l) => (
+          <CopyLink key={l.email} path={directPath(l.token, `/w/${ws}/review`)}
+            label={reviewLinks.length > 1 ? `Copy review link for ${l.email.split('@')[0]}` : `Copy review link (${waiting.length} waiting)`}
+            className="btn btn-quiet" />
+        ))}
         {isAdmin && waiting.length > 0 && <EmailApproversButton workspaceId={ws} count={waiting.length} />}
         {isAdmin && (
           <form action={createPost.bind(null, ws)}>

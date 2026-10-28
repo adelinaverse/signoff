@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { ActionForm } from '@/components/action-form';
-import { cancelInvite, inviteMember, removeMember, updateMyName, updateWorkspace } from '@/lib/actions';
+import { cancelInvite, inviteMember, removeMember, resetAccessLink, updateMyName, updateWorkspace } from '@/lib/actions';
+import { CopyLink } from '@/components/copy-link';
+import { directPath, ensureAccessLinks } from '@/lib/access-links';
 import { getWorkspaceContext } from '@/lib/data';
 import { TIMEZONES } from '@/lib/time';
 import { LogoUpload } from './logo-upload';
@@ -18,6 +20,12 @@ export default async function SettingsPage({ params }: { params: Promise<{ ws: s
     supabase.from('workspace_invites').select('email, role').eq('workspace_id', ws),
     supabase.from('profiles').select('full_name').eq('id', user.id).single(),
   ]);
+
+  const links = await ensureAccessLinks(supabase, ws, [
+    ...(members ?? []).map((m) => m.profile?.email ?? '').filter(Boolean),
+    ...(invites ?? []).map((i) => i.email as string),
+  ]);
+  const linkFor = (email?: string | null) => links.find((l) => l.email === (email ?? '').toLowerCase());
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-4 py-10 sm:px-6">
@@ -45,22 +53,28 @@ export default async function SettingsPage({ params }: { params: Promise<{ ws: s
       <section className="rounded-lg border border-line bg-surface p-5">
         <h2 className="font-semibold">People</h2>
         <p className="hint mt-1">Approvers can approve, request changes and suggest caption edits. Viewers can see the calendar and comment.</p>
+        <p className="hint mt-1">
+          Each person has a direct link that signs them in without an email. It&apos;s personal to them, so if one is shared by mistake, reset it and the old link stops working.
+        </p>
 
         <ul className="mt-4 divide-y divide-line border-y border-line">
           {(members ?? []).map((m) => (
-            <li key={m.user_id} className="flex items-center gap-3 py-3 text-sm">
+            <li key={m.user_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 text-sm">
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{m.profile?.full_name || m.profile?.email}</span>
                 {m.profile?.full_name && <span className="block truncate text-muted">{m.profile.email}</span>}
               </span>
               <span className="text-muted">{m.role === 'approver' ? 'Approver' : 'Viewer'}</span>
+              {linkFor(m.profile?.email) && <CopyLink path={directPath(linkFor(m.profile?.email)!.token, `/w/${ws}`)} label="Copy direct link" />}
+              {linkFor(m.profile?.email) && <form action={resetAccessLink.bind(null, ws, m.profile?.email ?? '')}><button className="btn btn-ghost btn-sm">Reset link</button></form>}
               <form action={removeMember.bind(null, ws, m.user_id)}><button className="btn btn-ghost btn-sm">Remove</button></form>
             </li>
           ))}
           {(invites ?? []).map((inv) => (
-            <li key={inv.email} className="flex items-center gap-3 py-3 text-sm">
-              <span className="min-w-0 flex-1 truncate">{inv.email} <span className="text-muted">hasn&apos;t signed in yet</span></span>
+            <li key={inv.email} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 text-sm">
+              <span className="min-w-0 flex-1 truncate">{inv.email} <span className="text-muted">hasn&apos;t opened their link yet</span></span>
               <span className="text-muted">{inv.role === 'approver' ? 'Approver' : 'Viewer'}</span>
+              {linkFor(inv.email) && <CopyLink path={directPath(linkFor(inv.email)!.token, `/w/${ws}`)} label="Copy direct link" />}
               <form action={cancelInvite.bind(null, ws, inv.email)}><button className="btn btn-ghost btn-sm">Cancel</button></form>
             </li>
           ))}

@@ -9,6 +9,7 @@ import { MediaViewer } from '@/components/media-viewer';
 import { StatusStamp } from '@/components/status-stamp';
 import { VersionHistory, type VersionView } from '@/components/version-history';
 import { CopyLink, LinkText } from '@/components/copy-link';
+import type { PersonLink } from '@/lib/access-links';
 import { addMedia, deletePost, moveMedia, removeMedia, savePost, sendForApproval, setStatus } from '@/lib/actions';
 import { checkPlatform, mediaSummary, PLATFORM_INFO, PLATFORMS } from '@/lib/platforms';
 import type { LoadedPostView } from './types';
@@ -24,8 +25,8 @@ export function PostEditor({ data, versions, workspace, logoUrl, userId, planned
   logoUrl: string | null;
   userId: string;
   plannedLocal: string;
-  /** emails of the people who can approve in this workspace */
-  approvers: string[];
+  /** the people who can approve, each with their own direct link */
+  approvers: PersonLink[];
 }) {
   const { post, media, comments, suggestions, approvals } = data;
   const router = useRouter();
@@ -147,19 +148,29 @@ export function PostEditor({ data, versions, workspace, logoUrl, userId, planned
         <div className="mt-4 rounded-lg border-2 border-cobalt bg-surface p-4">
           <p className="font-semibold">Send this link to {workspace.name}</p>
           {approvers.length > 0 ? (
-            <p className="mt-1 text-sm text-muted">
-              Nobody is notified automatically. Paste this into an email or message to {approvers.join(', ')}.
-              They sign in with that email and land straight on this post.
-            </p>
+            <>
+              <p className="mt-1 text-sm text-muted">
+                Nobody is notified automatically. The link opens this post and signs them in, no email or password needed.
+                Each link is personal, so send it only to that person.
+              </p>
+              <ul className="mt-3 space-y-2">
+                {approvers.map((a) => {
+                  const path = `/r/${a.token}?next=${encodeURIComponent(`/w/${workspace.id}/posts/${post.id}`)}`;
+                  return (
+                    <li key={a.email} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <span className="text-sm font-medium sm:w-56 sm:truncate">{a.email}</span>
+                      <div className="min-w-0 flex-1"><LinkText path={path} /></div>
+                      <CopyLink path={path} label="Copy link" className="btn btn-primary btn-sm" />
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           ) : (
             <p className="mt-1 text-sm text-amber">
-              No approver has been added for {workspace.name} yet. Add their email in <Link href={`/w/${workspace.id}/settings`} className="underline">Settings</Link> first, or the link won&apos;t let them in.
+              No approver has been added for {workspace.name} yet. Add their email in <Link href={`/w/${workspace.id}/settings`} className="underline">Settings</Link> and their link will appear here.
             </p>
           )}
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="min-w-0 flex-1"><LinkText path={`/w/${workspace.id}/posts/${post.id}`} /></div>
-            <CopyLink path={`/w/${workspace.id}/posts/${post.id}`} label="Copy link to this post" className="btn btn-primary btn-sm" />
-          </div>
         </div>
       )}
 

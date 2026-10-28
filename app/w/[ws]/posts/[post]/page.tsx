@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { VersionView } from '@/components/version-history';
+import { approverEmails, ensureAccessLinks } from '@/lib/access-links';
 import { getWorkspaceContext, loadPost, signUrls } from '@/lib/data';
 import { formatPlanned, utcToLocalInput } from '@/lib/time';
 import { PostEditor } from './post-editor';
@@ -33,15 +34,7 @@ export default async function PostPage({ params, searchParams }: {
   const ws_ = { id: workspace.id, name: workspace.name, timezone: workspace.timezone };
 
   if (role === 'admin' && view !== 'client') {
-    const [{ data: members }, { data: invites }] = await Promise.all([
-      supabase.from('workspace_members').select('profile:profiles(email)').eq('workspace_id', ws).eq('role', 'approver')
-        .returns<{ profile: { email: string } | null }[]>(),
-      supabase.from('workspace_invites').select('email').eq('workspace_id', ws).eq('role', 'approver'),
-    ]);
-    const approvers = [
-      ...(members ?? []).map((m) => m.profile?.email).filter((e): e is string => Boolean(e)),
-      ...(invites ?? []).map((i) => i.email),
-    ];
+    const approvers = await ensureAccessLinks(supabase, ws, await approverEmails(supabase, ws));
     return (
       <PostEditor data={data} versions={versions} workspace={ws_} logoUrl={logoUrl} userId={user.id}
         plannedLocal={utcToLocalInput(data.post.planned_at, workspace.timezone)} approvers={approvers} />

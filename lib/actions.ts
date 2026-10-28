@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { directPath, ensureAccessLinks } from './access-links';
 import { getSession, requireAdmin } from './data';
 import { digestHtml, sendEmail, SITE_URL, APP_NAME } from './email';
 import { checkPlatform, PLATFORMS } from './platforms';
@@ -68,29 +69,41 @@ export async function inviteMember(workspaceId: string, formData: FormData): Pro
   if (error) return { error: error.message };
 
   const { data: ws } = await supabase.from('workspaces').select('name').eq('id', workspaceId).single();
+  const [link] = await ensureAccessLinks(supabase, workspaceId, [email]);
   const mail = await sendEmail(
     [email],
     `You've been invited to review ${ws?.name ?? 'posts'}`,
     digestHtml({
       intro: `You've been added to ${ws?.name ?? 'a workspace'} on ${APP_NAME}, where you'll review and approve social posts before they go out.`,
       items: [role === 'approver' ? 'You can approve posts, request changes and suggest caption edits.' : 'You can see the content calendar and leave comments.'],
-      buttonLabel: 'Sign in',
-      buttonUrl: `${SITE_URL}/login?email=${encodeURIComponent(email)}`,
+      buttonLabel: 'Open your posts',
+      buttonUrl: link ? `${SITE_URL}${directPath(link.token, `/w/${workspaceId}`)}` : `${SITE_URL}/login?email=${encodeURIComponent(email)}`,
     }),
   );
   refresh(workspaceId);
-  return { ok: mail.sent ? `Invite sent to ${email}` : `Added ${email}. They can sign in at ${SITE_URL}/login (${mail.reason.toLowerCase()}).` };
+  return { ok: mail.sent ? `Invite sent to ${email}` : `Added ${email}. Copy their direct link below and send it to them.` };
 }
 
 export async function removeMember(workspaceId: string, userId: string) {
   const { supabase } = await requireAdmin();
+  const { data: p } = await supabase.from('profiles').select('email').eq('id', userId).maybeSingle();
   await supabase.from('workspace_members').delete().eq('workspace_id', workspaceId).eq('user_id', userId);
+  // Their direct link stops working once they're removed
+  if (p?.email) await supabase.from('access_links').delete().eq('workspace_id', workspaceId).eq('email', p.email.toLowerCase());
   refresh(workspaceId);
 }
 
 export async function cancelInvite(workspaceId: string, email: string) {
   const { supabase } = await requireAdmin();
   await supabase.from('workspace_invites').delete().eq('workspace_id', workspaceId).eq('email', email);
+  await supabase.from('access_links').delete().eq('workspace_id', workspaceId).eq('email', email.toLowerCase());
+  refresh(workspaceId);
+}
+
+/** Retires someone's direct link; a new one is made next time it's shown. */
+export async function resetAccessLink(workspaceId: string, email: string) {
+  const { supabase } = await requireAdmin();
+  await supabase.from('access_links').delete().eq('workspace_id', workspaceId).eq('email', email.toLowerCase());
   refresh(workspaceId);
 }
 

@@ -15,6 +15,7 @@ create role authenticated;
 `;
 await db.exec(stubs);
 await db.exec(fs.readFileSync(new URL('../supabase/migrations/0001_init.sql', import.meta.url), 'utf8'));
+await db.exec(fs.readFileSync(new URL('../supabase/migrations/0002_access_links.sql', import.meta.url), 'utf8'));
 await db.exec(`grant usage on schema public, auth, storage to authenticated;
 grant all on all tables in schema public to authenticated;
 grant all on all tables in schema storage to authenticated;
@@ -72,3 +73,10 @@ console.log('owner storage objects:', (await as(owner.id, () => q(`select name f
 try { await as(owner.id, () => q(`insert into storage.objects (bucket_id, name) values ('media', 'x/y.jpg')`)); console.log('BAD upload'); }
 catch { console.log('client upload blocked'); }
 console.log('profiles visible to owner:', (await as(owner.id, () => q(`select email from profiles`))).map(r => r.email));
+
+// direct links: only the agency can see or make them
+await as(admin.id, () => q(`insert into access_links (token, workspace_id, email) values ('tok123', $1, 'owner@awe.com')`, [ws.id]));
+console.log('admin sees links:', (await as(admin.id, () => q(`select token from access_links`))).length);
+console.log('client sees links:', (await as(owner.id, () => q(`select token from access_links`))).length);
+try { await as(owner.id, () => q(`insert into access_links (token, workspace_id, email) values ('x', $1, 'me@x.com')`, [ws.id])); console.log('BAD: client made a link'); }
+catch { console.log('client cannot make links'); }
