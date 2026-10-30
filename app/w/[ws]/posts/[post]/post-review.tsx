@@ -42,6 +42,10 @@ export function PostReview({ data, versions, workspace, logoUrl, role, userId, p
   const pv = platforms.find((p) => p.platform === tab) ?? platforms[0];
   const canDecide = post.status === 'ready' && (role === 'approver' || (role === 'admin' && !previewing));
   const canSuggest = post.status === 'ready' && role !== 'viewer';
+  // An approver can still ask for changes after someone else approved it
+  const canReopen = ['approved', 'scheduled'].includes(post.status) && role === 'approver' && !previewing;
+  const lastApproval = [...approvals].reverse().find((a) => a.decision === 'approved' && a.version === post.version);
+  const approvedBy = lastApproval ? (lastApproval.user_id === userId ? 'you' : lastApproval.author?.full_name || lastApproval.author?.email.split('@')[0] || 'someone') : null;
   const canComment = !previewing;
 
   const marked = comments.filter((c) => c.media_item_id);
@@ -82,7 +86,7 @@ export function PostReview({ data, versions, workspace, logoUrl, role, userId, p
   );
 
   return (
-    <main className={`mx-auto max-w-6xl px-4 py-6 sm:px-6 ${canDecide ? 'pb-40' : ''}`}>
+    <main className={`mx-auto max-w-6xl px-4 py-6 sm:px-6 ${canDecide || canReopen ? 'pb-40' : ''}`}>
       {previewing && (
         <div className="mb-4 flex items-center gap-3 rounded-md bg-cobalt-soft px-3 py-2 text-sm">
           <span className="mr-auto">This is what {workspace.name} sees.</span>
@@ -191,7 +195,7 @@ export function PostReview({ data, versions, workspace, logoUrl, role, userId, p
         </div>
       </div>
 
-      {canDecide && !decided && (
+      {(canDecide || canReopen) && !decided && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur">
           <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
             {choice && choice !== 'approved' ? (
@@ -212,14 +216,20 @@ export function PostReview({ data, versions, workspace, logoUrl, role, userId, p
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
-                <p className="mr-auto hidden text-sm text-muted sm:block">Happy with this post?</p>
+                <p className="mr-auto text-sm text-muted">
+                  {canReopen
+                    ? `Approved${approvedBy ? ` by ${approvedBy}` : ''}. Something still not right? You can send it back.`
+                    : <span className="hidden sm:inline">Happy with this post?</span>}
+                </p>
                 {error && <p className="w-full text-sm text-red">{error}</p>}
                 <button type="button" className="btn btn-ghost text-red hover:text-red" disabled={pending} onClick={() => setChoice('rejected')}>Reject</button>
-                <button type="button" className="btn btn-quiet flex-1 sm:flex-none" disabled={pending} onClick={() => setChoice('changes_requested')}>Request changes</button>
-                <button type="button" className="btn flex-1 border-2 border-green bg-green text-white hover:bg-green/90 sm:flex-none" disabled={pending}
-                  onClick={() => submitDecision('approved')}>
-                  {pending ? 'Approving…' : 'Approve'}
-                </button>
+                <button type="button" className={`btn flex-1 sm:flex-none ${canReopen ? 'bg-amber text-white' : 'btn-quiet'}`} disabled={pending} onClick={() => setChoice('changes_requested')}>Request changes</button>
+                {canDecide && (
+                  <button type="button" className="btn flex-1 border-2 border-green bg-green text-white hover:bg-green/90 sm:flex-none" disabled={pending}
+                    onClick={() => submitDecision('approved')}>
+                    {pending ? 'Approving…' : 'Approve'}
+                  </button>
+                )}
               </div>
             )}
           </div>

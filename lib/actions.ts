@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { approverEmails, directPath, ensureAccessLinks } from './access-links';
 import { getSession, requireAdmin } from './data';
+import { createServiceClient } from './supabase/server';
 import { digestHtml, sendEmail, SITE_URL, APP_NAME } from './email';
 import { checkPlatform, PLATFORMS } from './platforms';
 import { formatPlanned, localInputToUtc } from './time';
@@ -403,12 +404,38 @@ export async function reviewSuggestion(suggestionId: string, accept: boolean): P
 }
 
 export async function decide(postId: string, decision: Decision, reason: string): Promise<Result> {
-  const { supabase } = await getSession();
+  const { supabase, user } = await getSession();
   const post = await getPost(postId);
   const { error } = await supabase.rpc('decide_post', { pid: postId, choice: decision, why: reason });
   if (error) return { error: error.message };
   refresh(post.workspace_id, postId);
+
+  // Reopening an approved post matters to the agency straight away: it may already be scheduled
+  if (decision !== 'approved' && (post.status === 'approved' || post.status === 'scheduled')) {
+    await emailAgencyAboutReopen(post, user.email, decision, reason).catch(() => undefined);
+  }
   return { ok: decision === 'approved' ? 'Approved' : decision === 'rejected' ? 'Rejected' : 'Changes requested' };
+}
+
+async function emailAgencyAboutReopen(post: Post, by: string, decision: Decision, reason: string) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+  const admin = createServiceClient();
+  const [{ data: admins }, { data: ws }] = await Promise.all([
+    admin.from('agency_admins').select('email'),
+    admin.from('workspaces').select('name').eq('id', post.workspace_id).single(),
+  ]);
+  const to = (admins ?? []).map((a) => a.email as string);
+  const wasScheduled = post.status === 'scheduled';
+  await sendEmail(
+    to,
+    `${ws?.name ?? 'Client'}: ${decision === 'rejected' ? 'approved post rejected' : 'changes requested on an approved post'}`,
+    digestHtml({
+      intro: `${by} ${decision === 'rejected' ? 'rejected' : 'asked for changes to'} "${post.title}", which had already been approved.${wasScheduled ? ' It was marked as scheduled, so check it is pulled from the schedule.' : ''}`,
+      items: [reason.trim()],
+      buttonLabel: 'Open the post',
+      buttonUrl: `${SITE_URL}/w/${post.workspace_id}/posts/${post.id}`,
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ create role authenticated;
 await db.exec(stubs);
 await db.exec(fs.readFileSync(new URL('../supabase/migrations/0001_init.sql', import.meta.url), 'utf8'));
 await db.exec(fs.readFileSync(new URL('../supabase/migrations/0002_access_links.sql', import.meta.url), 'utf8'));
+await db.exec(fs.readFileSync(new URL('../supabase/migrations/0003_reopen_approved.sql', import.meta.url), 'utf8'));
 await db.exec(`grant usage on schema public, auth, storage to authenticated;
 grant all on all tables in schema public to authenticated;
 grant all on all tables in schema storage to authenticated;
@@ -80,3 +81,9 @@ console.log('admin sees links:', (await as(admin.id, () => q(`select token from 
 console.log('client sees links:', (await as(owner.id, () => q(`select token from access_links`))).length);
 try { await as(owner.id, () => q(`insert into access_links (token, workspace_id, email) values ('x', $1, 'me@x.com')`, [ws.id])); console.log('BAD: client made a link'); }
 catch { console.log('client cannot make links'); }
+
+// a second approver can request changes after the post was approved
+console.log('reopen:', await as(owner.id, () => q(`select decide_post($1, 'changes_requested', 'Wrong photo on slide 2') s`, [ready.id])));
+console.log('approved examples after reopen:', (await q(`select 1 from learning_records where post_id = $1 and kind = 'approved_caption'`, [ready.id])).length);
+try { await as(owner.id, () => q(`select decide_post($1, 'approved')`, [ready.id])); console.log('BAD: approved a post being revised'); }
+catch (e) { console.log('cannot approve while being revised:', e.message); }

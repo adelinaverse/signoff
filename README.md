@@ -15,7 +15,7 @@ The app name is neutral and set with `NEXT_PUBLIC_APP_NAME`, so you can rename i
 ## 1. Set up Supabase
 
 1. Create a new project. Pick the Sydney region so it's close to your clients.
-2. Open **SQL Editor**, paste the whole of `supabase/migrations/0001_init.sql` and run it. Then do the same with `0002_access_links.sql`.
+2. Open **SQL Editor**, paste the whole of `supabase/migrations/0001_init.sql` and run it. Then do the same with `0002_access_links.sql` and `0003_reopen_approved.sql`, in order.
 3. In the same editor, make yourself the agency admin:
 
    ```sql
