@@ -10,6 +10,8 @@ import { StatusStamp } from '@/components/status-stamp';
 import { VersionHistory, type VersionView } from '@/components/version-history';
 import { CopyLink, LinkText } from '@/components/copy-link';
 import type { PersonLink } from '@/lib/access-links';
+import { HashtagPicker } from '@/components/hashtag-picker';
+import { extractHashtags, type HashtagStat } from '@/lib/hashtags';
 import { addMedia, deletePost, moveMedia, removeMedia, savePost, sendForApproval, setStatus } from '@/lib/actions';
 import { checkPlatform, mediaSummary, PLATFORM_INFO, PLATFORMS } from '@/lib/platforms';
 import type { LoadedPostView } from './types';
@@ -18,7 +20,7 @@ import type { Platform } from '@/lib/types';
 
 type PState = Record<Platform, { on: boolean; caption: string; is_reel: boolean }>;
 
-export function PostEditor({ data, versions, workspace, logoUrl, userId, plannedLocal, approvers }: {
+export function PostEditor({ data, versions, workspace, logoUrl, userId, plannedLocal, approvers, hashtags }: {
   data: LoadedPostView;
   versions: VersionView[];
   workspace: { id: string; name: string; timezone: string };
@@ -27,6 +29,8 @@ export function PostEditor({ data, versions, workspace, logoUrl, userId, planned
   plannedLocal: string;
   /** the people who can approve, each with their own direct link */
   approvers: PersonLink[];
+  /** hashtags used in this client's other posts */
+  hashtags: HashtagStat[];
 }) {
   const { post, media, comments, suggestions, approvals } = data;
   const router = useRouter();
@@ -289,6 +293,15 @@ export function PostEditor({ data, versions, workspace, logoUrl, userId, planned
                 )}
                 <textarea id={`cap-${p}`} rows={Math.min(Math.max(platforms[p].caption.split('\n').length + 3, 6), 18)} className="field mt-2 resize-y text-sm" readOnly={!editable}
                   value={platforms[p].caption} onChange={(e) => setP(p, { caption: e.target.value })} />
+                {editable && (
+                  <HashtagPicker
+                    platform={p}
+                    caption={platforms[p].caption}
+                    onChange={(caption) => setP(p, { caption })}
+                    memory={hashtags}
+                    alsoInThisPost={chosen.filter((o) => o !== p).flatMap((o) => extractHashtags(platforms[o].caption))}
+                  />
+                )}
                 {p !== 'linkedin' && platforms.linkedin.on && platforms.linkedin.caption && !platforms[p].caption && editable && (
                   <button type="button" className="btn btn-ghost btn-sm mt-1 -ml-2" onClick={() => setP(p, { caption: platforms.linkedin.caption })}>Copy the LinkedIn caption</button>
                 )}

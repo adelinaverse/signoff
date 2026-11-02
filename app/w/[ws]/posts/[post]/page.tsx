@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { VersionView } from '@/components/version-history';
 import { approverEmails, ensureAccessLinks } from '@/lib/access-links';
 import { getWorkspaceContext, loadPost, signUrls } from '@/lib/data';
+import { tallyHashtags } from '@/lib/hashtags';
 import { formatPlanned, utcToLocalInput } from '@/lib/time';
 import { PostEditor } from './post-editor';
 import { PostReview } from './post-review';
@@ -34,10 +35,17 @@ export default async function PostPage({ params, searchParams }: {
   const ws_ = { id: workspace.id, name: workspace.name, timezone: workspace.timezone };
 
   if (role === 'admin' && view !== 'client') {
-    const approvers = await ensureAccessLinks(supabase, ws, await approverEmails(supabase, ws));
+    const [approvers, { data: past }] = await Promise.all([
+      approverEmails(supabase, ws).then((emails) => ensureAccessLinks(supabase, ws, emails)),
+      // every caption written for this client, to remember the hashtags used
+      supabase.from('platform_versions').select('caption, post_id, updated_at, post:posts!inner(workspace_id, status)')
+        .eq('post.workspace_id', ws).neq('post_id', postId)
+        .returns<{ caption: string; post_id: string; updated_at: string; post: { status: string } }[]>(),
+    ]);
+    const hashtags = tallyHashtags((past ?? []).map((r) => ({ ...r, status: r.post.status })));
     return (
       <PostEditor data={data} versions={versions} workspace={ws_} logoUrl={logoUrl} userId={user.id}
-        plannedLocal={utcToLocalInput(data.post.planned_at, workspace.timezone)} approvers={approvers} />
+        plannedLocal={utcToLocalInput(data.post.planned_at, workspace.timezone)} approvers={approvers} hashtags={hashtags} />
     );
   }
 
