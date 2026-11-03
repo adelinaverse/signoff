@@ -305,6 +305,35 @@ export async function setStatus(postId: string, status: 'draft' | 'approved' | '
   return {};
 }
 
+/**
+ * Marks a post as posted, from any stage. When the client approved it outside the app
+ * (by email, say), a note goes on the post and its captions count as approved examples.
+ */
+export async function markPosted(postId: string): Promise<Result> {
+  const { supabase, user } = await requireAdmin();
+  const post = await getPost(postId);
+  if (post.status === 'published') return {};
+
+  if (post.status !== 'approved' && post.status !== 'scheduled') {
+    await supabase.from('comments').insert({
+      post_id: postId, version: post.version, author_id: user.id,
+      body: 'Marked as posted. Approved by the client outside the app.',
+    });
+    const { data: pvs } = await supabase.from('platform_versions').select('platform, caption').eq('post_id', postId);
+    const approved = (pvs ?? []).filter((p) => p.caption.trim());
+    if (approved.length) {
+      await supabase.from('learning_records').insert(approved.map((p) => ({
+        workspace_id: post.workspace_id, post_id: postId, platform: p.platform, kind: 'approved_caption', after_text: p.caption,
+      })));
+    }
+    await supabase.from('caption_suggestions').update({ status: 'rejected' }).eq('post_id', postId).eq('status', 'pending');
+  }
+
+  await supabase.from('posts').update({ status: 'published', updated_at: new Date().toISOString() }).eq('id', postId);
+  refresh(post.workspace_id, postId);
+  return { ok: 'Marked as posted. It has moved to the posted list.' };
+}
+
 export async function deletePost(postId: string) {
   const { supabase } = await requireAdmin();
   const post = await getPost(postId);

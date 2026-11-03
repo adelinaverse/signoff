@@ -127,7 +127,7 @@ export default async function CalendarPage({ params, searchParams }: {
         <span className="border-l-[3px] border-l-cobalt pl-1.5">Waiting for approval</span>
         <span className="border-l-[3px] border-l-amber pl-1.5">Changes requested</span>
         <span className="border-l-[3px] border-l-green pl-1.5">Approved</span>
-        <span className="border-l-[3px] border-l-ink pl-1.5">Scheduled or published</span>
+        <span className="border-l-[3px] border-l-ink pl-1.5">Scheduled or posted</span>
         <span className="border-l-[3px] border-l-line-strong pl-1.5">Draft</span>
       </p>
     </main>

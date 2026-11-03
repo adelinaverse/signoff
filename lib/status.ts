@@ -9,7 +9,7 @@ const LABELS: Record<PostStatus, string> = {
   approved: 'Approved',
   rejected: 'Rejected',
   scheduled: 'Scheduled',
-  published: 'Published',
+  published: 'Posted',
 };
 
 export function statusLabel(status: PostStatus, role: Role) {

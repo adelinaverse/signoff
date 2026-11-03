@@ -12,7 +12,7 @@ import { CopyLink, LinkText } from '@/components/copy-link';
 import type { PersonLink } from '@/lib/access-links';
 import { HashtagPicker } from '@/components/hashtag-picker';
 import { extractHashtags, type HashtagStat } from '@/lib/hashtags';
-import { addMedia, deletePost, moveMedia, removeMedia, savePost, sendForApproval, setStatus } from '@/lib/actions';
+import { addMedia, deletePost, markPosted, moveMedia, removeMedia, savePost, sendForApproval, setStatus } from '@/lib/actions';
 import { checkPlatform, mediaSummary, PLATFORM_INFO, PLATFORMS } from '@/lib/platforms';
 import type { LoadedPostView } from './types';
 import { measure, uploadToMedia } from '@/lib/upload';
@@ -144,7 +144,17 @@ export function PostEditor({ data, versions, workspace, logoUrl, userId, planned
           )}
           {post.status === 'ready' && <button type="button" className="btn btn-quiet" disabled={pending} onClick={() => act(() => setStatus(post.id, 'draft'))}>Withdraw to edit</button>}
           {post.status === 'approved' && <button type="button" className="btn btn-primary" disabled={pending} onClick={() => act(() => setStatus(post.id, 'scheduled'))}>Mark as scheduled</button>}
-          {post.status === 'scheduled' && <button type="button" className="btn btn-primary" disabled={pending} onClick={() => act(() => setStatus(post.id, 'published'))}>Mark as published</button>}
+          {post.status === 'scheduled' && <button type="button" className="btn btn-primary" disabled={pending} onClick={() => act(() => markPosted(post.id))}>Mark as posted</button>}
+          {post.status === 'approved' && <button type="button" className="btn btn-quiet" disabled={pending} onClick={() => act(() => markPosted(post.id))}>Mark as posted</button>}
+          {['draft', 'ready', 'changes_requested', 'rejected'].includes(post.status) && (
+            <button type="button" className="btn btn-quiet" disabled={pending}
+              onClick={() => {
+                if (dirty) { setMsg({ error: 'Save your changes first, then mark it as posted.' }); return; }
+                if (confirm("The client hasn't approved this post in the app. Mark it as posted anyway? A note will be added saying it was approved outside the app.")) act(() => markPosted(post.id));
+              }}>
+              Mark as posted
+            </button>
+          )}
           {['approved', 'scheduled', 'published'].includes(post.status) && (
             <button type="button" className="btn btn-quiet" disabled={pending}
               onClick={() => { if (confirm('Move this post back to draft? It will need approving again.')) act(() => setStatus(post.id, 'draft')); }}>

@@ -103,7 +103,7 @@ export default async function BoardPage({ params, searchParams }: {
       {hiddenCount > 0 && (
         <p className="mt-6 text-sm">
           <Link href={showDone ? `/w/${ws}` : `/w/${ws}?show=all`} className="text-muted underline underline-offset-2 hover:text-ink">
-            {showDone ? 'Hide published and rejected posts' : `Show ${hiddenCount} published and rejected`}
+            {showDone ? 'Hide posted and rejected posts' : `Show ${hiddenCount} posted and rejected`}
           </Link>
         </p>
       )}
