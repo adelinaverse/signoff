@@ -45,7 +45,11 @@ function Avatar({ logoUrl, name, size, square }: { logoUrl: string | null; name:
 }
 
 /** Caption cut off after a set number of lines with "…more" sitting at the end, as the feeds do it */
-function ClampedCaption({ text, lines, prefix, className = '' }: { text: string; lines: number; prefix?: string; className?: string }) {
+/**
+ * Caption cut off after a set number of lines, with "…more" sitting at the end of the last line
+ * the way the feeds show it. Cut by height rather than line-clamp, so there's no second ellipsis.
+ */
+function ClampedCaption({ text, lines, lineHeight, prefix, className = '' }: { text: string; lines: number; lineHeight: number; prefix?: string; className?: string }) {
   const [open, setOpen] = useState(false);
   const [overflows, setOverflows] = useState(false);
   const ref = useRef<HTMLParagraphElement>(null);
@@ -61,14 +65,15 @@ function ClampedCaption({ text, lines, prefix, className = '' }: { text: string;
       <p
         ref={ref}
         className="whitespace-pre-wrap break-words"
-        style={open ? undefined : { display: '-webkit-box', WebkitLineClamp: lines, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+        style={{ lineHeight, ...(open ? {} : { maxHeight: `${lines * lineHeight}em`, overflow: 'hidden' }) }}
       >
         {prefix && <span className="mr-1 font-semibold">{prefix}</span>}
         {text || <span className="text-[#666]">No caption yet</span>}
       </p>
       {overflows && !open && (
         <button type="button" onClick={() => setOpen(true)}
-          className="absolute bottom-0 right-0 bg-white pl-1 text-[#666] hover:text-[#0a66c2] hover:underline">
+          style={{ lineHeight }}
+          className="absolute bottom-0 right-0 bg-white pl-2 text-[#666] shadow-[-12px_0_8px_-2px_white] hover:text-[#0a66c2] hover:underline">
           …more
         </button>
       )}
@@ -165,7 +170,7 @@ function LinkedInPreview({ caption, media, accountName, logoUrl }: Props) {
         </div>
         <span className="text-[20px] leading-none text-[#666]" aria-hidden>···</span>
       </div>
-      <ClampedCaption text={caption} lines={3} className="px-4 pb-2 pt-3 text-[14px] leading-[1.43]" />
+      <ClampedCaption text={caption} lines={3} lineHeight={1.43} className="px-4 pb-2 pt-3 text-[14px]" />
       <Grid media={media} portraitLayout={portrait} />
       <div className="mx-4 flex items-center justify-between border-b border-[#e8e8e8] py-2 text-[12px] text-[#666]">
         <span className="flex items-center gap-1">
@@ -198,7 +203,7 @@ function FacebookPreview({ caption, media, accountName, logoUrl }: Props) {
         </div>
         <span className="text-[20px] leading-none text-[#65676b]" aria-hidden>···</span>
       </div>
-      <ClampedCaption text={caption} lines={5} className="px-4 pb-3 pt-2 text-[15px] leading-[1.33]" />
+      <ClampedCaption text={caption} lines={5} lineHeight={1.33} className="px-4 pb-3 pt-2 text-[15px]" />
       <Grid media={media} portraitLayout={portrait} />
       <div className="mx-4 flex justify-around border-t border-[#ced0d4]">
         <Action icon={Icon.like} label="Like" />
@@ -244,7 +249,7 @@ function InstagramPreview({ caption, media, accountName, logoUrl }: Props) {
           </span>
         )}
       </div>
-      <ClampedCaption text={caption} lines={2} prefix={handle} className="px-3 pb-3 pt-2 text-[14px] leading-[1.3]" />
+      <ClampedCaption text={caption} lines={2} lineHeight={1.3} prefix={handle} className="px-3 pb-3 pt-2 text-[14px]" />
     </article>
   );
 }
